@@ -1,4 +1,4 @@
-// Copyright 2016 The etcd Authors
+// Copyright 2015 The etcd Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !windows && !plan9 && !solaris && !aix
-// +build !windows,!plan9,!solaris,!aix
+//go:build aix
+// +build aix
 
 package fileutil
 
@@ -22,14 +22,21 @@ import (
 	"syscall"
 )
 
-func flockTryLockFile(path string, flag int, perm os.FileMode) (*LockedFile, error) {
+func TryLockFile(path string, flag int, perm os.FileMode) (*LockedFile, error) {
+	var lock syscall.Flock_t
+	lock.Start = 0
+	lock.Len = 0
+	lock.Pid = 0
+	lock.Type = syscall.F_WRLCK
+	lock.Whence = 0
+	lock.Pid = 0
 	f, err := os.OpenFile(path, flag, perm)
 	if err != nil {
 		return nil, err
 	}
-	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := syscall.FcntlFlock(f.Fd(), syscall.F_SETLK, &lock); err != nil {
 		f.Close()
-		if err == syscall.EWOULDBLOCK {
+		if err == syscall.EAGAIN {
 			err = ErrLocked
 		}
 		return nil, err
@@ -37,14 +44,20 @@ func flockTryLockFile(path string, flag int, perm os.FileMode) (*LockedFile, err
 	return &LockedFile{f}, nil
 }
 
-func flockLockFile(path string, flag int, perm os.FileMode) (*LockedFile, error) {
+func LockFile(path string, flag int, perm os.FileMode) (*LockedFile, error) {
+	var lock syscall.Flock_t
+	lock.Start = 0
+	lock.Len = 0
+	lock.Pid = 0
+	lock.Type = syscall.F_WRLCK
+	lock.Whence = 0
 	f, err := os.OpenFile(path, flag, perm)
 	if err != nil {
 		return nil, err
 	}
-	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err = syscall.FcntlFlock(f.Fd(), syscall.F_SETLKW, &lock); err != nil {
 		f.Close()
 		return nil, err
 	}
-	return &LockedFile{f}, err
+	return &LockedFile{f}, nil
 }
